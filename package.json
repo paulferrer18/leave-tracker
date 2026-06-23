@@ -1,0 +1,14 @@
+{
+  "name": "leave-tracker",
+  "version": "1.0.0",
+  "description": "The Good Feet Store Team Leave Tracker",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "googleapis": "^140.0.0",
+    "cors": "^2.8.5"
+  }
+}

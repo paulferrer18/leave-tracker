@@ -163,14 +163,14 @@ canvas#particles-canvas {
 /* ── Year grid ── */
 .year-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0,1fr));
-  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 20px;
 }
 
 /* ── Month block ── */
 .month-block {
   background: var(--card); border: 1px solid var(--border);
-  border-radius: 14px; padding: 14px;
+  border-radius: 14px; padding: 18px;
   transition: border-color 0.2s, box-shadow 0.2s;
   position: relative; overflow: hidden;
 }
@@ -189,48 +189,49 @@ canvas#particles-canvas {
 }
 .mini-grid {
   display: grid; grid-template-columns: repeat(7, minmax(0,1fr));
-  gap: 2px;
+  gap: 3px;
 }
 .mini-dow {
   text-align: center; font-size: 7px; color: var(--muted);
   padding: 2px 0; letter-spacing: 0.5px;
 }
 .mini-day {
-  aspect-ratio: 1; border-radius: 4px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 8px; color: var(--muted); cursor: pointer;
+  border-radius: 6px; min-height: 64px;
+  display: flex; flex-direction: column; align-items: flex-start;
+  justify-content: flex-start; padding: 4px 5px;
+  font-size: 9px; color: var(--muted); cursor: pointer;
   transition: all 0.15s; position: relative;
   background: transparent;
 }
-.mini-day:hover { background: rgba(0,200,255,0.12); color: var(--glow); }
-.mini-day.empty { cursor: default; }
+.mini-day:hover { background: rgba(0,200,255,0.08); color: var(--glow); }
+.mini-day.empty { cursor: default; min-height: 64px; }
 .mini-day.empty:hover { background: transparent; color: var(--muted); }
 .mini-day.today {
-  background: rgba(0,255,179,0.15); color: var(--green);
-  box-shadow: 0 0 8px rgba(0,255,179,0.3); font-weight: 700;
+  background: rgba(0,255,179,0.1); color: var(--green);
+  box-shadow: 0 0 8px rgba(0,255,179,0.2); 
 }
-.mini-day.weekend { color: rgba(74,106,154,0.8); }
-.mini-day.has-leave {
-  background: rgba(0,200,255,0.2); color: var(--glow); font-weight: 600;
-}
-.mini-day.has-rd {
-  background: rgba(0,255,179,0.12); color: var(--green);
-}
-.mini-day.has-both {
-  background: linear-gradient(135deg, rgba(0,200,255,0.25), rgba(0,255,179,0.15));
-  color: var(--white); font-weight: 700;
-}
+.mini-day.today .mini-daynum { color: var(--green); font-weight: 700; text-shadow: 0 0 8px var(--green); }
+.mini-day.weekend .mini-daynum { color: rgba(74,106,154,0.7); }
+.mini-day.has-leave { background: rgba(0,200,255,0.08); }
+.mini-day.has-rd { background: rgba(0,255,179,0.06); }
+.mini-day.has-both { background: rgba(0,200,255,0.1); }
 .mini-day.overloaded {
-  background: rgba(255,68,102,0.2); color: var(--red);
-  box-shadow: 0 0 6px rgba(255,68,102,0.3);
+  background: rgba(255,68,102,0.15);
+  box-shadow: 0 0 8px rgba(255,68,102,0.25);
 }
-.mini-day .dot-row {
-  position: absolute; bottom: 1px; left: 0; right: 0;
-  display: flex; justify-content: center; gap: 1px;
+.mini-daynum {
+  font-size: 9px; font-weight: 600; color: var(--muted);
+  line-height: 1; margin-bottom: 3px; flex-shrink: 0;
 }
-.mini-dot { width: 3px; height: 3px; border-radius: 50%; }
-.mini-dot.l  { background: var(--glow); }
-.mini-dot.rd { background: var(--green); }
+.mini-names { display: flex; flex-direction: column; gap: 2px; width: 100%; }
+.mini-name-chip {
+  font-size: 8px; border-radius: 3px; padding: 1px 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  width: 100%; line-height: 1.4;
+}
+.mnc-l  { background: rgba(0,200,255,0.2); color: var(--glow); }
+.mnc-rd { background: rgba(0,255,179,0.15); color: var(--green); }
+.mnc-over { background: rgba(255,68,102,0.25); color: var(--red); }
 
 /* ── Day detail panel (slides in from right) ── */
 #detail-panel {
@@ -403,10 +404,10 @@ canvas#particles-canvas {
 #panel-backdrop.open { display: block; }
 
 @media (max-width: 900px) {
-  .year-grid { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .year-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
 }
 @media (max-width: 650px) {
-  .year-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .year-grid { grid-template-columns: repeat(1, minmax(0,1fr)); }
   .stats-row { grid-template-columns: repeat(2, minmax(0,1fr)); }
   #detail-panel { width: 100%; right: -100%; }
 }
@@ -633,14 +634,15 @@ function renderYear() {
       else if(rdCount>0) cls+=' has-rd';
       else if(isWeekend) cls+=' weekend';
 
-      const dots = [
-        ...Array(lCount).fill('<span class="mini-dot l"></span>'),
-        ...Array(rdCount).fill('<span class="mini-dot rd"></span>')
-      ].slice(0,4).join('');
-      const dotRow = entries.length ? `<span class="dot-row">${dots}</span>`:'';
+      const nameChips = entries.map(e => {
+        const chipCls = isOver ? 'mnc-over' : (e.type==='RD' ? 'mnc-rd' : 'mnc-l');
+        const label = e.emp.split(' ')[0]; // first name only to save space
+        return `<span class="mini-name-chip ${chipCls}">${label}</span>`;
+      }).join('');
+      const namesHtml = entries.length ? `<div class="mini-names">${nameChips}</div>` : '';
 
       const dateLabel = `${MFULL[m]} ${d}, ${viewYear}`;
-      dayHtml += `<div class="${cls}" onclick="openPanel('${k}','${dateLabel}',${m})">${d}${dotRow}</div>`;
+      dayHtml += `<div class="${cls}" onclick="openPanel('${k}','${dateLabel}',${m})"><div class="mini-daynum">${d}</div>${namesHtml}</div>`;
     }
 
     const badge = monthLeaves>0 ? `<span class="month-leave-count">${monthLeaves}L</span>`:'';

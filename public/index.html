@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Leave Tracker — The Good Feet Store</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap');
+
+:root {
+  --bg:       #050d1a;
+  --surface:  #0a1628;
+  --card:     #0d1f3c;
+  --border:   #1a3a6a;
+  --glow:     #00c8ff;
+  --glow2:    #0066ff;
+  --green:    #00ffb3;
+  --red:      #ff4466;
+  --yellow:   #ffd700;
+  --text:     #c8e0ff;
+  --muted:    #4a6a9a;
+  --white:    #ffffff;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── Scan line overlay ── */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,200,255,0.015) 2px, rgba(0,200,255,0.015) 4px);
+  pointer-events: none; z-index: 9000;
+}
+
+canvas#particles-canvas {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+}
+
+.page {
+  max-width: 1400px; margin: 0 auto;
+  padding: 24px 20px 60px;
+  position: relative; z-index: 1;
+}
+
+/* ── Header ── */
+.hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 28px; flex-wrap: wrap; gap: 16px;
+}
+.hdr-left h1 {
+  font-family: 'Orbitron', monospace;
+  font-size: 22px; font-weight: 700;
+  color: var(--white);
+  text-shadow: 0 0 20px var(--glow), 0 0 40px var(--glow2);
+  letter-spacing: 2px;
+}
+.hdr-left p {
+  font-size: 11px; color: var(--muted);
+  letter-spacing: 3px; text-transform: uppercase; margin-top: 3px;
+}
+.hdr-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* ── Sync pill ── */
+#sync-bar {
+  display: flex; align-items: center; gap: 7px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 20px; padding: 5px 12px; font-size: 11px; color: var(--muted);
+}
+.sync-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+.sync-dot.live    { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.sync-dot.err     { background: var(--red);   box-shadow: 0 0 8px var(--red); }
+.sync-dot.loading { background: var(--yellow);animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+
+/* ── Buttons ── */
+.btn {
+  border: none; border-radius: 8px; cursor: pointer;
+  font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500;
+  padding: 7px 14px; display: inline-flex; align-items: center; gap: 6px;
+  transition: all 0.2s; letter-spacing: 0.5px;
+}
+.btn-glow {
+  background: transparent; color: var(--glow);
+  border: 1px solid var(--glow); box-shadow: 0 0 12px rgba(0,200,255,0.2);
+}
+.btn-glow:hover { background: rgba(0,200,255,0.1); box-shadow: 0 0 20px rgba(0,200,255,0.4); }
+.btn-green {
+  background: transparent; color: var(--green);
+  border: 1px solid var(--green); box-shadow: 0 0 12px rgba(0,255,179,0.15);
+}
+.btn-green:hover { background: rgba(0,255,179,0.1); box-shadow: 0 0 20px rgba(0,255,179,0.35); }
+#bg-input { display: none; }
+.bg-preview { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--glow); background: var(--card); }
+
+/* ── Stats ── */
+.stats-row {
+  display: grid; grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 12px; margin-bottom: 24px;
+}
+.stat-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px 18px;
+  position: relative; overflow: hidden;
+}
+.stat-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--glow2), var(--glow));
+}
+.stat-card.warn::before { background: linear-gradient(90deg, #ff2244, #ff6688); }
+.stat-num {
+  font-family: 'Orbitron', monospace; font-size: 32px; font-weight: 700;
+  color: var(--glow); text-shadow: 0 0 16px var(--glow);
+  line-height: 1;
+}
+.stat-card.warn .stat-num { color: var(--red); text-shadow: 0 0 16px var(--red); }
+.stat-label { font-size: 10px; color: var(--muted); margin-top: 6px; letter-spacing: 1.5px; text-transform: uppercase; }
+
+/* ── Team tags ── */
+.team-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 24px;
+}
+.team-lbl { font-size: 10px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; }
+.emp-tag {
+  background: rgba(0,200,255,0.08); border: 1px solid rgba(0,200,255,0.25);
+  border-radius: 20px; padding: 3px 12px; font-size: 11px; color: var(--glow);
+}
+
+/* ── Warn banner ── */
+.warn-banner {
+  background: rgba(255,68,102,0.08); border: 1px solid rgba(255,68,102,0.4);
+  border-radius: 10px; padding: 10px 16px; margin-bottom: 20px;
+  font-size: 12px; color: var(--red); display: none; align-items: center; gap: 10px;
+}
+
+/* ── Year selector ── */
+.year-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
+}
+.year-nav { display: flex; align-items: center; gap: 12px; }
+.year-nav button {
+  background: var(--card); border: 1px solid var(--border); color: var(--glow);
+  width: 32px; height: 32px; border-radius: 8px; cursor: pointer; font-size: 16px;
+  display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+}
+.year-nav button:hover { border-color: var(--glow); box-shadow: 0 0 12px rgba(0,200,255,0.3); }
+.year-display {
+  font-family: 'Orbitron', monospace; font-size: 18px; font-weight: 600;
+  color: var(--white); text-shadow: 0 0 16px var(--glow); letter-spacing: 3px;
+}
+.legend { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+.leg-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+.leg-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+/* ── Year grid ── */
+.year-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 16px;
+}
+
+/* ── Month block ── */
+.month-block {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 14px; padding: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  position: relative; overflow: hidden;
+}
+.month-block:hover { border-color: rgba(0,200,255,0.4); box-shadow: 0 0 20px rgba(0,200,255,0.08); }
+.month-block.has-data { border-color: rgba(0,200,255,0.25); }
+.month-name {
+  font-family: 'Orbitron', monospace; font-size: 10px; font-weight: 600;
+  color: var(--glow); letter-spacing: 2px; text-transform: uppercase;
+  margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;
+}
+.month-leave-count {
+  font-size: 9px; background: rgba(0,200,255,0.12);
+  border: 1px solid rgba(0,200,255,0.25); border-radius: 10px;
+  padding: 1px 7px; color: var(--glow); font-family: 'Inter', sans-serif;
+  letter-spacing: 0;
+}
+.mini-grid {
+  display: grid; grid-template-columns: repeat(7, minmax(0,1fr));
+  gap: 2px;
+}
+.mini-dow {
+  text-align: center; font-size: 7px; color: var(--muted);
+  padding: 2px 0; letter-spacing: 0.5px;
+}
+.mini-day {
+  aspect-ratio: 1; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 8px; color: var(--muted); cursor: pointer;
+  transition: all 0.15s; position: relative;
+  background: transparent;
+}
+.mini-day:hover { background: rgba(0,200,255,0.12); color: var(--glow); }
+.mini-day.empty { cursor: default; }
+.mini-day.empty:hover { background: transparent; color: var(--muted); }
+.mini-day.today {
+  background: rgba(0,255,179,0.15); color: var(--green);
+  box-shadow: 0 0 8px rgba(0,255,179,0.3); font-weight: 700;
+}
+.mini-day.weekend { color: rgba(74,106,154,0.8); }
+.mini-day.has-leave {
+  background: rgba(0,200,255,0.2); color: var(--glow); font-weight: 600;
+}
+.mini-day.has-rd {
+  background: rgba(0,255,179,0.12); color: var(--green);
+}
+.mini-day.has-both {
+  background: linear-gradient(135deg, rgba(0,200,255,0.25), rgba(0,255,179,0.15));
+  color: var(--white); font-weight: 700;
+}
+.mini-day.overloaded {
+  background: rgba(255,68,102,0.2); color: var(--red);
+  box-shadow: 0 0 6px rgba(255,68,102,0.3);
+}
+.mini-day .dot-row {
+  position: absolute; bottom: 1px; left: 0; right: 0;
+  display: flex; justify-content: center; gap: 1px;
+}
+.mini-dot { width: 3px; height: 3px; border-radius: 50%; }
+.mini-dot.l  { background: var(--glow); }
+.mini-dot.rd { background: var(--green); }
+
+/* ── Day detail panel (slides in from right) ── */
+#detail-panel {
+  position: fixed; top: 0; right: -420px; width: 400px; height: 100vh;
+  background: var(--surface); border-left: 1px solid var(--border);
+  box-shadow: -20px 0 60px rgba(0,0,0,0.5);
+  z-index: 500; transition: right 0.35s cubic-bezier(.4,0,.2,1);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+#detail-panel.open { right: 0; }
+.panel-header {
+  padding: 24px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-start; justify-content: space-between;
+}
+.panel-date {
+  font-family: 'Orbitron', monospace; font-size: 14px; color: var(--glow);
+  text-shadow: 0 0 12px var(--glow); letter-spacing: 1px;
+}
+.panel-subdate { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.panel-close {
+  background: none; border: none; color: var(--muted); font-size: 20px;
+  cursor: pointer; padding: 4px; line-height: 1; transition: color 0.2s;
+}
+.panel-close:hover { color: var(--red); }
+.panel-body { padding: 20px 24px; flex: 1; overflow-y: auto; }
+.panel-section-title {
+  font-size: 10px; color: var(--muted); letter-spacing: 2px;
+  text-transform: uppercase; margin-bottom: 10px; margin-top: 20px;
+}
+.panel-section-title:first-child { margin-top: 0; }
+
+/* entries list */
+.entry-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
+.entry-row {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 14px;
+  animation: chipPop 0.3s cubic-bezier(.34,1.56,.64,1) forwards;
+}
+.entry-badge {
+  font-size: 9px; font-weight: 700; border-radius: 5px;
+  padding: 2px 6px; letter-spacing: 1px; flex-shrink: 0;
+}
+.badge-l  { background: rgba(0,200,255,0.2); color: var(--glow); border: 1px solid rgba(0,200,255,0.4); }
+.badge-rd { background: rgba(0,255,179,0.15); color: var(--green); border: 1px solid rgba(0,255,179,0.3); }
+.entry-name { font-size: 13px; color: var(--white); flex: 1; }
+.entry-rm {
+  background: none; border: none; color: var(--muted); font-size: 16px;
+  cursor: pointer; padding: 2px 4px; transition: color 0.2s; line-height: 1;
+}
+.entry-rm:hover { color: var(--red); }
+.empty-day { font-size: 12px; color: var(--muted); font-style: italic; padding: 8px 0; }
+
+/* panel tabs */
+.panel-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.ptab {
+  flex: 1; padding: 8px; border-radius: 8px; cursor: pointer; font-size: 12px;
+  font-weight: 500; border: 1px solid var(--border); background: transparent;
+  color: var(--muted); transition: all 0.2s;
+}
+.ptab.active { border-color: var(--glow); color: var(--glow); background: rgba(0,200,255,0.08); box-shadow: 0 0 12px rgba(0,200,255,0.15); }
+
+/* panel form */
+.panel-select {
+  width: 100%; padding: 10px 12px; border-radius: 9px;
+  border: 1px solid var(--border); font-size: 13px;
+  color: var(--text); background: var(--card); margin-bottom: 10px; outline: none;
+  font-family: 'Inter', sans-serif;
+}
+.panel-select:focus { border-color: var(--glow); box-shadow: 0 0 0 3px rgba(0,200,255,0.1); }
+.panel-btn {
+  width: 100%; padding: 11px; border-radius: 9px; border: none; cursor: pointer;
+  font-size: 13px; font-weight: 600; font-family: 'Inter', sans-serif;
+  background: linear-gradient(135deg, var(--glow2), var(--glow));
+  color: #000; transition: opacity 0.2s; letter-spacing: 0.5px;
+}
+.panel-btn:hover { opacity: 0.85; }
+.panel-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* bulk checkboxes */
+.bulk-scroll { max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.bulk-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border);
+  cursor: pointer; font-size: 12px; color: var(--text); transition: border-color 0.15s;
+}
+.bulk-row:hover { border-color: var(--green); }
+.bulk-row input[type=checkbox] { accent-color: var(--green); width: 14px; height: 14px; cursor: pointer; }
+.bulk-row.already { opacity: 0.4; pointer-events: none; }
+.already-tag { font-size: 9px; background: rgba(0,255,179,0.1); color: var(--green); border-radius: 4px; padding: 1px 5px; margin-left: auto; }
+.bulk-actions { display: flex; gap: 8px; margin-bottom: 10px; }
+.bulk-mini-btn {
+  flex: 1; padding: 6px; background: transparent; color: var(--muted);
+  border: 1px solid var(--border); border-radius: 7px; font-size: 11px; cursor: pointer;
+}
+.bulk-mini-btn:hover { border-color: var(--green); color: var(--green); }
+
+/* ── Employee modal ── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.6); align-items: center; justify-content: center; z-index: 999;
+  backdrop-filter: blur(4px);
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface); border-radius: 18px; padding: 28px; width: 340px;
+  border: 1px solid var(--border); box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(0,200,255,0.06);
+}
+.modal h3 {
+  font-family: 'Orbitron', monospace; font-size: 14px; font-weight: 600;
+  color: var(--glow); letter-spacing: 1px; margin-bottom: 18px;
+  text-shadow: 0 0 12px var(--glow);
+}
+.modal input[type=text] {
+  width: 100%; padding: 10px 14px; border-radius: 9px;
+  border: 1px solid var(--border); font-size: 13px; color: var(--text);
+  background: var(--card); margin-bottom: 10px; outline: none; font-family: 'Inter', sans-serif;
+}
+.modal input[type=text]:focus { border-color: var(--glow); }
+.emp-row {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 13px; padding: 7px 0; border-bottom: 1px solid var(--border); color: var(--text);
+}
+.emp-row:last-child { border-bottom: none; }
+.rm-emp { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 16px; padding: 2px 6px; }
+.rm-emp:hover { color: var(--red); }
+.modal-btns { display: flex; gap: 8px; margin-top: 16px; }
+.modal-btn-primary {
+  flex: 1; padding: 10px; background: linear-gradient(135deg, var(--glow2), var(--glow));
+  color: #000; border: none; border-radius: 9px; font-size: 13px;
+  font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif;
+}
+.modal-btn-secondary {
+  flex: 1; padding: 10px; background: transparent; color: var(--muted);
+  border: 1px solid var(--border); border-radius: 9px; font-size: 13px; cursor: pointer;
+}
+.modal-btn-secondary:hover { border-color: var(--muted); }
+
+/* ── Tibe na toast ── */
+#tibe-toast {
+  position: fixed; top: 50%; left: 50%;
+  transform: translate(-50%, -50%) scale(0.4);
+  background: linear-gradient(135deg, #0044ff, #00c8ff, #00ffb3);
+  color: #000; font-family: 'Orbitron', monospace;
+  font-size: 36px; font-weight: 700;
+  padding: 24px 44px; border-radius: 20px;
+  box-shadow: 0 0 80px rgba(0,200,255,0.6), 0 0 160px rgba(0,200,255,0.3);
+  letter-spacing: 3px; z-index: 9999; pointer-events: none; opacity: 0;
+}
+#tibe-toast.show { animation: tibePopIn 2.2s ease forwards; }
+@keyframes tibePopIn {
+  0%   { opacity:0; transform:translate(-50%,-60%) scale(0.3) rotate(-8deg); }
+  15%  { opacity:1; transform:translate(-50%,-50%) scale(1.1) rotate(2deg); }
+  25%  { opacity:1; transform:translate(-50%,-50%) scale(0.97) rotate(-1deg); }
+  35%  { opacity:1; transform:translate(-50%,-50%) scale(1.02) rotate(0deg); }
+  70%  { opacity:1; transform:translate(-50%,-50%) scale(1) rotate(0deg); }
+  100% { opacity:0; transform:translate(-50%,-58%) scale(0.8) rotate(4deg); }
+}
+
+@keyframes chipPop {
+  from { transform:scale(0); opacity:0; }
+  to   { transform:scale(1); opacity:1; }
+}
+
+/* ── Overlay backdrop for panel ── */
+#panel-backdrop {
+  display: none; position: fixed; inset: 0; z-index: 499;
+  background: rgba(0,0,0,0.4);
+}
+#panel-backdrop.open { display: block; }
+
+@media (max-width: 900px) {
+  .year-grid { grid-template-columns: repeat(3, minmax(0,1fr)); }
+}
+@media (max-width: 650px) {
+  .year-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .stats-row { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  #detail-panel { width: 100%; right: -100%; }
+}
+@media (max-width: 400px) {
+  .year-grid { grid-template-columns: repeat(1, minmax(0,1fr)); }
+}
+</style>
+</head>
+<body>
+<canvas id="particles-canvas"></canvas>
+<div id="tibe-toast">TIBE NA!</div>
+<div id="panel-backdrop" onclick="closePanel()"></div>
+
+<div class="page">
+
+  <!-- Header -->
+  <div class="hdr">
+    <div class="hdr-left">
+      <h1>⬡ LEAVE TRACKER</h1>
+      <p>The Good Feet Store &nbsp;·&nbsp; Operations Console</p>
+    </div>
+    <div class="hdr-right">
+      <div id="sync-bar">
+        <div class="sync-dot loading" id="sync-dot"></div>
+        <span id="sync-label">Connecting…</span>
+      </div>
+      <button class="btn btn-glow" onclick="openEmpModal()">⊕ Team</button>
+      <label class="btn btn-green" for="bg-input">
+        <span class="bg-preview" id="bg-preview"></span> Background
+      </label>
+      <input type="file" id="bg-input" accept="image/*" onchange="changeBg(event)" />
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-num" id="stat-total">0</div>
+      <div class="stat-label">Leaves this year</div>
+    </div>
+    <div class="stat-card warn">
+      <div class="stat-num" id="stat-over">0</div>
+      <div class="stat-label">Over-limit days</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" id="stat-rd">0</div>
+      <div class="stat-label">Rest days this year</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" id="stat-emp">0</div>
+      <div class="stat-label">Team members</div>
+    </div>
+  </div>
+
+  <!-- Team tags -->
+  <div class="team-bar">
+    <span class="team-lbl">Team //</span>
+    <div id="emp-tags" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+  </div>
+
+  <!-- Warn banner -->
+  <div id="warn-banner" class="warn-banner">
+    <span>⚠</span><span id="warn-text"></span>
+  </div>
+
+  <!-- Year nav + legend -->
+  <div class="year-bar">
+    <div class="year-nav">
+      <button onclick="changeYear(-1)">‹</button>
+      <div class="year-display" id="year-display">2026</div>
+      <button onclick="changeYear(1)">›</button>
+    </div>
+    <div class="legend">
+      <div class="leg-item"><div class="leg-dot" style="background:var(--glow)"></div> Leave</div>
+      <div class="leg-item"><div class="leg-dot" style="background:var(--green)"></div> Rest Day</div>
+      <div class="leg-item"><div class="leg-dot" style="background:var(--red)"></div> Over limit</div>
+      <div class="leg-item"><div class="leg-dot" style="background:var(--green);box-shadow:0 0 6px var(--green)"></div> Today</div>
+    </div>
+  </div>
+
+  <!-- 12-month year grid -->
+  <div class="year-grid" id="year-grid"></div>
+
+</div>
+
+<!-- Day Detail Panel -->
+<div id="detail-panel">
+  <div class="panel-header">
+    <div>
+      <div class="panel-date" id="panel-date">—</div>
+      <div class="panel-subdate" id="panel-subdate"></div>
+    </div>
+    <button class="panel-close" onclick="closePanel()">✕</button>
+  </div>
+  <div class="panel-body">
+    <div class="panel-section-title">Entries</div>
+    <div class="entry-list" id="entry-list"></div>
+
+    <div class="panel-section-title" style="margin-top:20px">Add entry</div>
+    <div class="panel-tabs">
+      <button class="ptab active" id="ptab-single" onclick="switchPTab('single')">Single</button>
+      <button class="ptab" id="ptab-bulk" onclick="switchPTab('bulk')">Bulk Rest Day</button>
+    </div>
+
+    <div id="ppane-single">
+      <select class="panel-select" id="panel-emp"><option value="">Select employee…</option></select>
+      <select class="panel-select" id="panel-type">
+        <option value="L">Leave (L)</option>
+        <option value="RD">Rest Day (RD)</option>
+      </select>
+      <button class="panel-btn" id="panel-add-btn" onclick="addLeave()">Add Entry</button>
+    </div>
+
+    <div id="ppane-bulk" style="display:none">
+      <div class="bulk-actions">
+        <button class="bulk-mini-btn" onclick="bulkSelectAll()">Select all</button>
+        <button class="bulk-mini-btn" onclick="bulkClearAll()">Clear all</button>
+      </div>
+      <div class="bulk-scroll" id="bulk-checkboxes"></div>
+      <button class="panel-btn" id="panel-bulk-btn" onclick="addBulkRD()">Add Rest Days</button>
+    </div>
+  </div>
+</div>
+
+<!-- Employee Modal -->
+<div id="emp-modal" class="modal-overlay" onclick="if(event.target===this)closeEmpModal()">
+  <div class="modal">
+    <h3>// TEAM ROSTER</h3>
+    <input type="text" id="new-emp-input" placeholder="Employee name…" onkeydown="if(event.key==='Enter')addEmployee()" />
+    <button class="modal-btn-primary" style="width:100%;margin-bottom:16px" onclick="addEmployee()">Add Member</button>
+    <div id="emp-list"></div>
+    <div class="modal-btns">
+      <button class="modal-btn-secondary" onclick="closeEmpModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const MONTHS   = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+const MFULL    = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DAYS     = ['S','M','T','W','T','F','S'];
+const today    = new Date();
+let viewYear   = today.getFullYear();
+let employees  = [];
+let leaveData  = {};  // all loaded data keyed by "YYYY-MM-DD"
+let pendingDate = null;
+
+// ── API ───────────────────────────────────────────────────
+async function apiFetch(path, opts={}) {
+  const res = await fetch(path, { headers:{'Content-Type':'application/json'}, ...opts });
+  return res.json();
+}
+
+async function loadAll() {
+  setSyncStatus('loading','Loading…');
+  try {
+    const empRes = await apiFetch('/api/employees');
+    employees = empRes.employees || [];
+    // Load all 12 months in parallel
+    const results = await Promise.all(
+      Array.from({length:12},(_,m) => {
+        const mk = `${viewYear}-${String(m+1).padStart(2,'0')}`;
+        return apiFetch(`/api/leaves?month=${mk}`);
+      })
+    );
+    leaveData = {};
+    results.forEach(r => Object.assign(leaveData, r.leaveData || {}));
+    setSyncStatus('live','Live — Google Sheets ✓');
+    renderEmpTags();
+    renderYear();
+  } catch(e) {
+    setSyncStatus('err','Connection error');
+  }
+}
+
+async function reloadMonth(m) {
+  const mk = `${viewYear}-${String(m+1).padStart(2,'0')}`;
+  const r  = await apiFetch(`/api/leaves?month=${mk}`);
+  // Clear old keys for this month then merge
+  Object.keys(leaveData).forEach(k => { if(k.startsWith(mk)) delete leaveData[k]; });
+  Object.assign(leaveData, r.leaveData || {});
+}
+
+function setSyncStatus(state, msg) {
+  const dot = document.getElementById('sync-dot');
+  dot.className = 'sync-dot' + (state==='live'?' live':state==='err'?' err':' loading');
+  document.getElementById('sync-label').textContent = msg;
+}
+
+// ── Key ───────────────────────────────────────────────────
+function key(y,m,d){ return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+
+// ── Render full year ──────────────────────────────────────
+function renderYear() {
+  document.getElementById('year-display').textContent = viewYear;
+  let totalL=0, totalRD=0, overDays=0, overList=[];
+
+  const html = Array.from({length:12},(_,m) => {
+    const firstDow    = new Date(viewYear,m,1).getDay();
+    const daysInMonth = new Date(viewYear,m+1,0).getDate();
+    let monthLeaves   = 0;
+    let dayHtml = DAYS.map(d=>`<div class="mini-dow">${d}</div>`).join('');
+    for(let i=0;i<firstDow;i++) dayHtml+=`<div class="mini-day empty"></div>`;
+    for(let d=1;d<=daysInMonth;d++){
+      const k       = key(viewYear,m,d);
+      const entries = leaveData[k]||[];
+      const lCount  = entries.filter(e=>e.type==='L').length;
+      const rdCount = entries.filter(e=>e.type==='RD').length;
+      const isToday = today.getFullYear()===viewYear && today.getMonth()===m && today.getDate()===d;
+      const dow     = new Date(viewYear,m,d).getDay();
+      const isWeekend = dow===0||dow===6;
+      const isOver  = lCount>2;
+
+      totalL  += lCount;
+      totalRD += rdCount;
+      if(isOver){ overDays++; overList.push(`${MFULL[m]} ${d}`); }
+      monthLeaves += lCount;
+
+      let cls = 'mini-day';
+      if(isToday)   cls+=' today';
+      else if(isOver)    cls+=' overloaded';
+      else if(lCount>0 && rdCount>0) cls+=' has-both';
+      else if(lCount>0)  cls+=' has-leave';
+      else if(rdCount>0) cls+=' has-rd';
+      else if(isWeekend) cls+=' weekend';
+
+      const dots = [
+        ...Array(lCount).fill('<span class="mini-dot l"></span>'),
+        ...Array(rdCount).fill('<span class="mini-dot rd"></span>')
+      ].slice(0,4).join('');
+      const dotRow = entries.length ? `<span class="dot-row">${dots}</span>`:'';
+
+      const dateLabel = `${MFULL[m]} ${d}, ${viewYear}`;
+      dayHtml += `<div class="${cls}" onclick="openPanel('${k}','${dateLabel}',${m})">${d}${dotRow}</div>`;
+    }
+
+    const badge = monthLeaves>0 ? `<span class="month-leave-count">${monthLeaves}L</span>`:'';
+    return `<div class="month-block${monthLeaves>0?' has-data':''}">
+      <div class="month-name">${MONTHS[m]} ${badge}</div>
+      <div class="mini-grid">${dayHtml}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('year-grid').innerHTML = html;
+  document.getElementById('stat-total').textContent = totalL;
+  document.getElementById('stat-rd').textContent    = totalRD;
+  document.getElementById('stat-over').textContent  = overDays;
+  document.getElementById('stat-emp').textContent   = employees.length;
+
+  const banner = document.getElementById('warn-banner');
+  if(overList.length>0){
+    document.getElementById('warn-text').textContent = `Over-limit: ${overList.join(', ')}`;
+    banner.style.display='flex';
+  } else { banner.style.display='none'; }
+}
+
+// ── Year nav ──────────────────────────────────────────────
+async function changeYear(d) {
+  viewYear += d;
+  setSyncStatus('loading','Loading…');
+  const results = await Promise.all(
+    Array.from({length:12},(_,m) => {
+      const mk = `${viewYear}-${String(m+1).padStart(2,'0')}`;
+      return apiFetch(`/api/leaves?month=${mk}`);
+    })
+  );
+  leaveData = {};
+  results.forEach(r => Object.assign(leaveData, r.leaveData||{}));
+  setSyncStatus('live','Live — Google Sheets ✓');
+  renderYear();
+}
+
+// ── Team ──────────────────────────────────────────────────
+function renderEmpTags() {
+  document.getElementById('emp-tags').innerHTML =
+    employees.map(e=>`<span class="emp-tag">${e}</span>`).join('');
+}
+function renderEmpModal() {
+  document.getElementById('emp-list').innerHTML =
+    employees.map((e,i)=>
+      `<div class="emp-row">${e}<button class="rm-emp" onclick="removeEmp(${i})">✕</button></div>`
+    ).join('');
+}
+async function addEmployee() {
+  const inp=document.getElementById('new-emp-input');
+  const name=inp.value.trim();
+  if(!name) return;
+  if(!employees.includes(name)){
+    employees.push(name);
+    await apiFetch('/api/employees',{method:'POST',body:JSON.stringify({employees})});
+  }
+  inp.value='';
+  renderEmpTags(); renderEmpModal();
+  document.getElementById('stat-emp').textContent=employees.length;
+}
+async function removeEmp(i) {
+  employees.splice(i,1);
+  await apiFetch('/api/employees',{method:'POST',body:JSON.stringify({employees})});
+  renderEmpTags(); renderEmpModal();
+  document.getElementById('stat-emp').textContent=employees.length;
+}
+function openEmpModal(){ renderEmpModal(); document.getElementById('emp-modal').classList.add('open'); }
+function closeEmpModal(){ document.getElementById('emp-modal').classList.remove('open'); }
+
+// ── Day detail panel ──────────────────────────────────────
+let pendingMonth = null;
+function openPanel(dateKey, dateLabel, month) {
+  pendingDate  = dateKey;
+  pendingMonth = month;
+  const [y,m,d] = dateKey.split('-');
+  document.getElementById('panel-date').textContent   = dateLabel;
+  document.getElementById('panel-subdate').textContent = `${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date(+y,+m-1,+d).getDay()]}`;
+  // populate employee select
+  const sel = document.getElementById('panel-emp');
+  sel.innerHTML = '<option value="">Select employee…</option>' +
+    employees.map(e=>`<option value="${e}">${e}</option>`).join('');
+  switchPTab('single');
+  renderEntries();
+  document.getElementById('detail-panel').classList.add('open');
+  document.getElementById('panel-backdrop').classList.add('open');
+}
+function closePanel(){
+  document.getElementById('detail-panel').classList.remove('open');
+  document.getElementById('panel-backdrop').classList.remove('open');
+}
+
+function renderEntries() {
+  const entries = leaveData[pendingDate]||[];
+  const list = document.getElementById('entry-list');
+  if(entries.length===0){
+    list.innerHTML='<div class="empty-day">No entries yet — add one below.</div>';
+    return;
+  }
+  list.innerHTML = entries.map(e=>
+    `<div class="entry-row">
+      <span class="entry-badge ${e.type==='RD'?'badge-rd':'badge-l'}">${e.type}</span>
+      <span class="entry-name">${e.emp}</span>
+      <button class="entry-rm" onclick="removeLeave('${pendingDate}','${e.emp}')">✕</button>
+    </div>`
+  ).join('');
+}
+
+function switchPTab(tab){
+  const isSingle = tab==='single';
+  document.getElementById('ppane-single').style.display = isSingle?'':'none';
+  document.getElementById('ppane-bulk').style.display   = isSingle?'none':'';
+  document.getElementById('ptab-single').classList.toggle('active',isSingle);
+  document.getElementById('ptab-bulk').classList.toggle('active',!isSingle);
+  if(!isSingle) renderBulkCheckboxes();
+}
+
+function renderBulkCheckboxes(){
+  const existing=(leaveData[pendingDate]||[]).map(e=>e.emp);
+  document.getElementById('bulk-checkboxes').innerHTML=employees.map(emp=>{
+    const has=existing.includes(emp);
+    return `<label class="bulk-row${has?' already':''}">
+      <input type="checkbox" class="bulk-cb" value="${emp}" ${has?'checked disabled':''}/>
+      ${emp}${has?'<span class="already-tag">added</span>':''}
+    </label>`;
+  }).join('');
+}
+function bulkSelectAll(){ document.querySelectorAll('.bulk-cb:not(:disabled)').forEach(cb=>cb.checked=true); }
+function bulkClearAll() { document.querySelectorAll('.bulk-cb:not(:disabled)').forEach(cb=>cb.checked=false); }
+
+async function addLeave(){
+  const emp  = document.getElementById('panel-emp').value;
+  const type = document.getElementById('panel-type').value;
+  if(!emp){ alert('Please select an employee.'); return; }
+  const k=pendingDate;
+  if((leaveData[k]||[]).find(e=>e.emp===emp)){ alert(`${emp} already has an entry on this day.`); return; }
+  const btn=document.getElementById('panel-add-btn');
+  btn.disabled=true; btn.textContent='Saving…';
+  await apiFetch('/api/leaves/add',{method:'POST',body:JSON.stringify({date:k,employee:emp,type})});
+  if(!leaveData[k]) leaveData[k]=[];
+  leaveData[k].push({emp,type});
+  btn.disabled=false; btn.textContent='Add Entry';
+  renderEntries();
+  renderYear();
+  if(type==='L') showTibeToast();
+}
+
+async function addBulkRD(){
+  const selected=[...document.querySelectorAll('.bulk-cb:not(:disabled):checked')].map(cb=>cb.value);
+  if(selected.length===0){ alert('Please select at least one employee.'); return; }
+  const btn=document.getElementById('panel-bulk-btn');
+  btn.disabled=true; btn.textContent='Saving…';
+  const k=pendingDate;
+  for(const emp of selected){
+    await apiFetch('/api/leaves/add',{method:'POST',body:JSON.stringify({date:k,employee:emp,type:'RD'})});
+    if(!leaveData[k]) leaveData[k]=[];
+    leaveData[k].push({emp,type:'RD'});
+  }
+  btn.disabled=false; btn.textContent='Add Rest Days';
+  renderBulkCheckboxes();
+  renderEntries();
+  renderYear();
+}
+
+async function removeLeave(k,emp){
+  leaveData[k]=(leaveData[k]||[]).filter(e=>e.emp!==emp);
+  renderEntries();
+  renderYear();
+  await apiFetch('/api/leaves/remove',{method:'POST',body:JSON.stringify({date:k,employee:emp})});
+}
+
+// ── Tibe na toast ─────────────────────────────────────────
+function showTibeToast(){
+  const t=document.getElementById('tibe-toast');
+  t.classList.remove('show'); void t.offsetWidth; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2300);
+}
+
+// ── Background ────────────────────────────────────────────
+function changeBg(event){
+  const file=event.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const url=e.target.result;
+    document.body.style.cssText+=`;background-image:url(${url});background-size:cover;background-position:center;background-attachment:fixed`;
+    document.getElementById('bg-preview').style.background=`url(${url}) center/cover`;
+    localStorage.setItem('gfs_bg',url);
+  };
+  reader.readAsDataURL(file);
+}
+function loadSavedBg(){
+  const saved=localStorage.getItem('gfs_bg');
+  if(saved){
+    document.body.style.cssText+=`;background-image:url(${saved});background-size:cover;background-position:center;background-attachment:fixed`;
+    document.getElementById('bg-preview').style.background=`url(${saved}) center/cover`;
+  }
+}
+
+// ── Particles (subtle cyber dots) ────────────────────────
+function initParticles(){
+  const canvas=document.getElementById('particles-canvas');
+  const ctx=canvas.getContext('2d');
+  let particles=[];
+  function resize(){ canvas.width=window.innerWidth; canvas.height=window.innerHeight; }
+  resize(); window.addEventListener('resize',resize);
+  function rp(){
+    return { x:Math.random()*canvas.width, y:Math.random()*canvas.height,
+      size:1+Math.random()*2, speed:0.2+Math.random()*0.4,
+      drift:(Math.random()-0.5)*0.2, opacity:0.1+Math.random()*0.25,
+      color:Math.random()>0.5?'#00c8ff':'#00ffb3' };
+  }
+  for(let i=0;i<60;i++){ particles.push(rp()); }
+  function animate(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    particles.forEach(p=>{
+      p.y-=p.speed; p.x+=p.drift;
+      if(p.y<-5) Object.assign(p,rp(),{y:canvas.height+5});
+      ctx.save();
+      ctx.globalAlpha=p.opacity;
+      ctx.fillStyle=p.color;
+      ctx.shadowBlur=6; ctx.shadowColor=p.color;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill();
+      ctx.restore();
+    });
+    requestAnimationFrame(animate);
+  }
+  animate();
+}
+
+// ── Boot ─────────────────────────────────────────────────
+loadSavedBg();
+initParticles();
+loadAll();
+</script>
+</body>
+</html>
